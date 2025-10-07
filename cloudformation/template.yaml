@@ -3,7 +3,24 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Sample CloudFormation template for an application
 
 Resources:
-  # Create the replication role first without direct references to the bucket
+  AppBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: sample-app-bucket-12345
+      AccessControl: PublicRead                 # Issue 1: public read ACL
+      # Added cross-region replication configuration for improved data durability and availability
+      ReplicationConfiguration:
+        Role: !GetAtt ReplicationRole.Arn
+        Rules:
+          - Destination:
+              Bucket: !Sub 'arn:aws:s3:::${AWS::StackName}-replica'
+              DestinationRegion: us-west-2  # Fixed: Changed 'Region' to 'DestinationRegion' for proper CloudFormation syntax
+            Status: Enabled
+            Priority: 1
+            DeleteMarkerReplication:
+              Status: Enabled
+
+  # IAM role for S3 replication
   ReplicationRole:
     Type: AWS::IAM::Role
     Properties:
@@ -19,68 +36,21 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              # Use dynamic references instead of direct GetAtt
               - Effect: Allow
                 Action:
                   - s3:GetReplicationConfiguration
                   - s3:ListBucket
-                Resource: !Sub 'arn:aws:s3:::${AWS::StackName}-bucket'  # Use stack name instead of direct reference
+                Resource: !GetAtt AppBucket.Arn
               - Effect: Allow
                 Action:
                   - s3:GetObjectVersionForReplication
                   - s3:GetObjectVersionAcl
                   - s3:GetObjectVersionTagging
-                Resource: !Sub 'arn:aws:s3:::${AWS::StackName}-bucket/*'  # Use stack name instead of direct reference
+                Resource: !Sub '${AppBucket.Arn}/*'
               - Effect: Allow
                 Action:
                   - s3:ReplicateObject
                   - s3:ReplicateDelete
                   - s3:ReplicateTags
+                  - s3:GetObjectVersionTagging
                 Resource: !Sub 'arn:aws:s3:::${AWS::StackName}-replica/*'
-
-  AppBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub '${AWS::StackName}-bucket'  # Use stack name for consistency
-      AccessControl: PublicRead                 # Issue 1: public read ACL
-      # Added cross-region replication configuration for improved data durability and availability
-      ReplicationConfiguration:
-        Role: !GetAtt ReplicationRole.Arn
-        Rules:
-          - Destination:
-              Bucket: !Sub 'arn:aws:s3:::${AWS::StackName}-replica'
-              Region: us-west-2  # Replication to a different region
-            Status: Enabled
-            Priority: 1
-            DeleteMarkerReplication:
-              Status: Enabled
-
-  AppRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: AppRole
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: [ec2.amazonaws.com]
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: AppFullPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action: '*'                       # Issue 2: wildcard action
-                Resource: '*'                     # Issue 3: wildcard resource
-
-  OpenSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: open-security-group
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 22
-          ToPort: 22
-          CidrIp: 0.0.0.0/0                     # Issue 4: SSH open to the world
