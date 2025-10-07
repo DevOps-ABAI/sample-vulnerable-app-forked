@@ -8,13 +8,17 @@ Resources:
     Properties:
       BucketName: sample-app-bucket-12345
       AccessControl: PublicRead                 # Issue 1: public read ACL
+      # Added OwnershipControls to properly manage ACLs
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred  # Allows ACLs while maintaining bucket owner control
       # Added cross-region replication configuration for improved data durability and availability
       ReplicationConfiguration:
         Role: !GetAtt ReplicationRole.Arn
         Rules:
           - Destination:
               Bucket: !Sub 'arn:aws:s3:::${AWS::StackName}-replica'
-              DestinationRegion: us-west-2  # Fixed: Changed 'Region' to 'DestinationRegion' for proper CloudFormation syntax
+              Region: us-west-2  # Replication to a different region
             Status: Enabled
             Priority: 1
             DeleteMarkerReplication:
@@ -48,9 +52,3 @@ Resources:
                   - s3:GetObjectVersionTagging
                 Resource: !Sub '${AppBucket.Arn}/*'
               - Effect: Allow
-                Action:
-                  - s3:ReplicateObject
-                  - s3:ReplicateDelete
-                  - s3:ReplicateTags
-                  - s3:GetObjectVersionTagging
-                Resource: !Sub 'arn:aws:s3:::${AWS::StackName}-replica/*'
