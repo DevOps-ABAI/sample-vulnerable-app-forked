@@ -17,8 +17,9 @@ resource "aws_s3_bucket" "app_bucket" {
   acl    = "public-read"                        # Issue 1: public-read ACL
 }
 
+# Fixed IAM policy with least privilege access
 resource "aws_iam_policy" "app_policy" {
-  name        = "app-limited-access"
+  name        = "app-restricted-access"
   description = "Policy with least privilege access for instances"
 
   policy = <<EOF
@@ -29,8 +30,7 @@ resource "aws_iam_policy" "app_policy" {
       "Effect": "Allow",
       "Action": [
         "s3:GetObject",
-        "s3:ListBucket",
-        "s3:PutObject"
+        "s3:ListBucket"
       ],
       "Resource": [
         "arn:aws:s3:::sample-app-terraform-bucket-12345",
