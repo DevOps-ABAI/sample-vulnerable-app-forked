@@ -7,7 +7,7 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: sample-app-bucket-12345
-      # Fixed Issue 1: Removed PublicRead ACL to prevent public access to bucket contents
+      AccessControl: Private                 # Fixed: Changed from PublicRead to Private to prevent public access
       # Added cross-region replication configuration for improved data durability and availability
       ReplicationConfiguration:
         Role: !GetAtt ReplicationRole.Arn
@@ -52,5 +52,34 @@ Resources:
                   - s3:ReplicateObject
                   - s3:ReplicateDelete
                   - s3:ReplicateTags
-                  - s3:GetObjectVersionTagging
                 Resource: !Sub 'arn:aws:s3:::${AWS::StackName}-replica/*'
+
+  AppRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: AppRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [ec2.amazonaws.com]
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AppFullPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: '*'                       # Issue 2: wildcard action
+                Resource: '*'                     # Issue 3: wildcard resource
+
+  OpenSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: open-security-group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0                     # Issue 4: SSH open to the world
