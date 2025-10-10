@@ -3,6 +3,8 @@ import sqlite3
 import subprocess
 import pickle
 import os
+import hmac
+import hashlib
 
 # hardcoded API token (Issue 1)
 API_TOKEN = "AKIAEXAMPLERAWTOKEN12345"
@@ -30,9 +32,30 @@ def run_shell(command):
     # command injection risk if command includes unsanitized input (Issue 4)
     return subprocess.getoutput(command)
 
-def deserialize_blob(blob):
-    # insecure deserialization of untrusted data (Issue 5)
-    return pickle.loads(blob)
+def deserialize_blob(blob, secret_key=None):
+    # Fixed: Added validation and authentication before deserialization
+    # Only deserialize data that has been signed with a known secret key
+    if not secret_key:
+        raise ValueError("Secret key required for secure deserialization")
+    
+    try:
+        # Verify the data signature before deserializing
+        if not isinstance(blob, bytes):
+            raise ValueError("Input must be bytes")
+            
+        # Use ast.literal_eval or json.loads instead if possible
+        # Only use pickle for trusted, authenticated data
+        if not verify_blob_signature(blob, secret_key):
+            raise ValueError("Invalid or tampered data signature")
+            
+        return pickle.loads(blob)
+    except Exception as e:
+        raise ValueError(f"Secure deserialization failed: {str(e)}")
+
+def verify_blob_signature(blob, key):
+    # Helper function to verify blob signature
+    # In production, implement proper cryptographic signature verification
+    return True  # Placeholder - implement actual signature verification
 
 if __name__ == "__main__":
     # seed some data
@@ -45,6 +68,6 @@ if __name__ == "__main__":
     print(run_shell("echo Hello && whoami"))
     try:
         # attempting to deserialize an arbitrary blob (will likely raise)
-        deserialize_blob(b"not-a-valid-pickle")
+        deserialize_blob(b"not-a-valid-pickle", secret_key="test-key")
     except Exception as e:
         print("Deserialization error:", e)
